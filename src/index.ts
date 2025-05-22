@@ -8,7 +8,9 @@ const openapi = fromHono(new Hono(), {
 // --- CORS Middleware ---
 openapi.use('*', async (c, next) => {
   await next();
-  c.res.headers.set('Access-Control-Allow-Origin', '*');
+  c.res.headers.set('Access-Control-Allow-Origin', '*'); // Permitir cualquier origen (desarrollo)
+  // Para producción restringida, usa:
+  // c.res.headers.set('Access-Control-Allow-Origin', 'https://qmd.odiador.dev');
   c.res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 });
@@ -23,9 +25,14 @@ openapi.options('*', (c) => {
 
 // GET /productos - Listar productos disponibles
 openapi.get('/productos', async (c) => {
-  const db = c.env.DB;
-  const { results } = await db.prepare('SELECT * FROM Producto WHERE estado IS NULL OR estado != "inactivo"').all();
-  return c.json(results);
+  try {
+    const db = c.env.DB;
+    const { results } = await db.prepare('SELECT * FROM Producto WHERE estado IS NULL OR estado != "inactivo"').all();
+    return c.json(results);
+  } catch (err) {
+    console.error('Error en /productos:', err);
+    return c.json({ error: 'Error interno en /productos', detalle: String(err) }, 500);
+  }
 });
 
 // GET /carro/:ciudadanoId - Obtener o crear el carro de compras de un ciudadano

@@ -6,7 +6,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "qmd-d1",
 	"main": "src/index.ts",
-	"compatibility_date": "2025-05-21",
+	"compatibility_date": "2025-05-08",
 	"observability": {
 		"enabled": true
 	},
@@ -16,6 +16,9 @@
 			"database_name": "d1-db",
 			"database_id": "56ad01dc-168d-4615-926a-4736eb510c86"
 		}
+	],
+	"routes": [
+		"https://api.odiador.dev/*"
 	],
 
 	/**
