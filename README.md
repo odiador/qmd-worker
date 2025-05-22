@@ -1,25 +1,58 @@
-# Cloudflare Workers OpenAPI 3.1
+# QMD-D1: Backend API para "Llenar Carro de Productos"
 
-This is a Cloudflare Worker with OpenAPI 3.1 using [chanfana](https://github.com/cloudflare/chanfana) and [Hono](https://github.com/honojs/hono).
+Este README describe los pasos para implementar la API backend en el proyecto `qmd-d1` usando Cloudflare Workers y D1, siguiendo la especificación del proceso "Llenar Carro de Productos".
 
-This is an example project made to be used as a quick start into building OpenAPI compliant Workers that generates the
-`openapi.json` schema automatically from code and validates the incoming request to the defined parameters or request body.
+## 1. Modelado de la Base de Datos (D1)
 
-## Get started
+1. Define el esquema SQL para las siguientes entidades y relaciones:
+   - Ciudadano
+   - Producto
+   - CatalogoPreferencias
+   - CarroCompras
+   - DetalleProducto
+2. Crea los scripts de migración en la carpeta `migrations/` o usando `npx wrangler d1 migrations create`.
+3. Aplica las migraciones con `npx wrangler d1 migrations apply`.
 
-1. Sign up for [Cloudflare Workers](https://workers.dev). The free tier is more than enough for most use cases.
-2. Clone this project and install dependencies with `npm install`
-3. Run `wrangler login` to login to your Cloudflare account in wrangler
-4. Run `wrangler deploy` to publish the API to Cloudflare Workers
+## 2. Estructura del Proyecto
 
-## Project structure
+- `src/types.ts`: Define los tipos TypeScript para las entidades del dominio.
+- `src/endpoints/`: Implementa aquí los endpoints RESTful.
+- `src/index.ts`: Registra y expone los endpoints.
 
-1. Your main router is defined in `src/index.ts`.
-2. Each endpoint has its own file in `src/endpoints/`.
-3. For more information read the [chanfana documentation](https://chanfana.pages.dev/) and [Hono documentation](https://hono.dev/docs).
+## 3. Implementación de Endpoints (API RESTful)
 
-## Development
+Implementa los siguientes endpoints:
 
-1. Run `wrangler dev` to start a local instance of the API.
-2. Open `http://localhost:8787/` in your browser to see the Swagger interface where you can try the endpoints.
-3. Changes made in the `src/` folder will automatically trigger the server to reload, you only need to refresh the Swagger interface.
+- **GET /productos**: Listar productos disponibles.
+- **GET /carro/:ciudadanoId**: Obtener o crear el carro de compras de un ciudadano.
+- **POST /carro/:carroId/producto**: Agregar producto o catálogo al carro.
+- **PUT /carro/:carroId/detalle/:detalleId**: Actualizar cantidad de un producto en el carro.
+- **DELETE /carro/:carroId/detalle/:detalleId**: Eliminar producto del carro.
+- **GET /carro/:carroId**: Ver contenido completo del carro (con subtotales y total).
+- **POST /carro/:carroId/tramitar**: Tramitar el carro de compras (validación y procesamiento).
+- **GET /notificaciones/:ciudadanoId**: Consultar notificaciones del estado del carro.
+
+## 4. Lógica de Negocio
+
+- Implementa la lógica de cálculo de subtotales, impuestos y total en el backend.
+- Aplica reglas de validación (ej. disponibilidad de productos, verificación de ciudadano).
+
+## 5. Pruebas Locales
+
+- Usa `npx wrangler dev` para pruebas locales.
+- Usa herramientas como Postman o curl para probar los endpoints.
+
+## 6. Despliegue
+
+- Despliega con `npx wrangler deploy`.
+
+## 7. Notas
+
+- El binding a la base de datos D1 ya está configurado como `env.DB`.
+- Consulta la especificación en `../REQUIREMENTS.md` para detalles de negocio y dominio.
+
+---
+
+**Referencia:**
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)

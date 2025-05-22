@@ -1,0 +1,76 @@
+-- Migración inicial para QMD-D1 (d1-db)
+
+CREATE TABLE Ciudadano (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cedula TEXT NOT NULL UNIQUE,
+    nombre TEXT NOT NULL,
+    apellido TEXT NOT NULL,
+    direccion TEXT,
+    telefono TEXT,
+    email TEXT,
+    fechaNacimiento TEXT,
+    genero TEXT,
+    estado TEXT
+);
+
+CREATE TABLE Producto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL UNIQUE,
+    nombre TEXT NOT NULL,
+    categoriaPrincipal TEXT,
+    categoriaSecundaria TEXT,
+    descripcion TEXT,
+    precio REAL NOT NULL,
+    stock INTEGER NOT NULL,
+    detalle TEXT,
+    caracteristicas TEXT,
+    garantia TEXT,
+    estado TEXT
+);
+
+CREATE TABLE CatalogoPreferencias (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL UNIQUE,
+    nombre TEXT NOT NULL,
+    descripcion TEXT,
+    cantidad INTEGER,
+    estado TEXT,
+    fecha TEXT,
+    oferta TEXT,
+    codigoBarras TEXT
+);
+
+CREATE TABLE CarroCompras (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ciudadanoId INTEGER NOT NULL,
+    codigo TEXT NOT NULL UNIQUE,
+    fecha TEXT,
+    hora TEXT,
+    estado TEXT,
+    observaciones TEXT,
+    descripcion TEXT,
+    detalle TEXT,
+    concepto TEXT,
+    impuesto REAL,
+    subtotal REAL,
+    total REAL,
+    FOREIGN KEY (ciudadanoId) REFERENCES Ciudadano(id)
+);
+
+CREATE TABLE DetalleProducto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    carroId INTEGER NOT NULL,
+    productoId INTEGER,
+    catalogoId INTEGER,
+    estado TEXT,
+    cantidad INTEGER,
+    concepto TEXT,
+    monto REAL,
+    impuesto REAL,
+    subtotal REAL,
+    fechaEntrega TEXT,
+    fechaPrestamo TEXT,
+    FOREIGN KEY (carroId) REFERENCES CarroCompras(id),
+    FOREIGN KEY (productoId) REFERENCES Producto(id),
+    FOREIGN KEY (catalogoId) REFERENCES CatalogoPreferencias(id)
+);
