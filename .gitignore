@@ -170,3 +170,43 @@ dist
 
 .dev.vars
 .wrangler/
+
+# QMD BACKEND GITIGNORE
+
+# Node
+node_modules/
+
+# Build y dist
+*.log
+dist/
+build/
+
+# Cloudflare/Miniflare
+.wrangler/
+wrangler.toml
+wrangler.log
+
+# Env
+.env
+.env.*
+
+# SQLite/DB
+*.sqlite
+*.db
+*.db-journal
+
+# VSCode
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Otros
+*.local
+*.tmp
+*.bak
+
+# No subir datos locales ni temporales
+migrations/*.sqlite
+migrations/*.db

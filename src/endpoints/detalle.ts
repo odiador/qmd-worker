@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { Context } from 'hono';
+import { fromHono } from 'chanfana';
 
-export const detalleRoutes = new Hono();
+export const detalleRoutes = fromHono(new Hono());
 
 // POST /carro/:carroId/producto - Agregar producto o catálogo al carro
 // Espera body: { productoId?, catalogoId?, cantidad }
-detalleRoutes.post('/:carroId/producto', async (c: Context) => {
+detalleRoutes.post('/:carroId/producto', async (c) => {
   const db = c.env.DB;
   const carroId = Number(c.req.param('carroId'));
   const { productoId, catalogoId, cantidad } = await c.req.json();
@@ -16,7 +16,7 @@ detalleRoutes.post('/:carroId/producto', async (c: Context) => {
 
 // PUT /carro/:carroId/detalle/:detalleId - Actualizar cantidad
 // Espera body: { cantidad }
-detalleRoutes.put('/:carroId/detalle/:detalleId', async (c: Context) => {
+detalleRoutes.put('/:carroId/detalle/:detalleId', async (c) => {
   const db = c.env.DB;
   const detalleId = Number(c.req.param('detalleId'));
   const { cantidad } = await c.req.json();
@@ -25,7 +25,7 @@ detalleRoutes.put('/:carroId/detalle/:detalleId', async (c: Context) => {
 });
 
 // DELETE /carro/:carroId/detalle/:detalleId - Eliminar producto del carro
-detalleRoutes.delete('/:carroId/detalle/:detalleId', async (c: Context) => {
+detalleRoutes.delete('/:carroId/detalle/:detalleId', async (c) => {
   const db = c.env.DB;
   const detalleId = Number(c.req.param('detalleId'));
   await db.prepare('DELETE FROM DetalleProducto WHERE id = ?').bind(detalleId).run();
