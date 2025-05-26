@@ -239,5 +239,5 @@ export function generarEmailHTML(
     .replace('{{ORDER_CODE}}', carro.codigo || `QMD-${carro.id}`)
     .replace('{{PRODUCTS_ROWS}}', productosHTML)
     .replace('{{TOTAL}}', `$${total.toLocaleString('es-CO')}`)
-    .replace('{{CIUDADANO_ID}}', carro.ciudadano_id?.toString?.() || carro.ciudadano_id || '');
+    .replace('{{CIUDADANO_ID}}', (carro.ciudadanoId || carro.ciudadano_id || '').toString());
 }
