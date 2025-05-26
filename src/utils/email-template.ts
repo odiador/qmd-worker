@@ -193,7 +193,7 @@ export const emailTemplate = `<!DOCTYPE html>
       </div>
       
       <div class="center">
-        <a href="https://qmd.odiador.dev/mis-pedidos" class="btn">Ver mis pedidos</a>
+        <a href="https://qmd.odiador.dev/#/ciudadano/{{CIUDADANO_ID}}/ver" class="btn">Ver mis pedidos</a>
       </div>
     </div>
     
@@ -238,5 +238,6 @@ export function generarEmailHTML(
     .replace('{{DATE}}', fecha)
     .replace('{{ORDER_CODE}}', carro.codigo || `QMD-${carro.id}`)
     .replace('{{PRODUCTS_ROWS}}', productosHTML)
-    .replace('{{TOTAL}}', `$${total.toLocaleString('es-CO')}`);
+    .replace('{{TOTAL}}', `$${total.toLocaleString('es-CO')}`)
+    .replace('{{CIUDADANO_ID}}', carro.ciudadano_id?.toString?.() || carro.ciudadano_id || '');
 }
