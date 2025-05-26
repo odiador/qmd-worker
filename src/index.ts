@@ -173,6 +173,7 @@ openapi.post('/ciudadanos', async (c: Context) => {
   try {
     const db = c.env.DB;
     const data = await c.req.json();
+    console.log('Intentando crear ciudadano con datos:', data);
     const result = await db.prepare(`
       INSERT INTO Ciudadano (nombre, apellido, cedula, email, direccion, telefono, fechaNacimiento, genero, estado)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -187,9 +188,12 @@ openapi.post('/ciudadanos', async (c: Context) => {
       data.genero || null,
       'Activo' // Estado por defecto
     ).run();
+    console.log('Resultado de inserción:', result);
     const ciudadano = await db.prepare('SELECT * FROM Ciudadano WHERE id = ?').bind(result.lastInsertRowId).first();
+    console.log('Ciudadano creado:', ciudadano);
     return c.json(ciudadano);
   } catch (err) {
+    console.error('Error al crear ciudadano:', err);
     return c.json({ error: 'Error al crear ciudadano', detalle: String(err) }, 500);
   }
 });
