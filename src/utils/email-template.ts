@@ -119,8 +119,9 @@ export const emailTemplate = `<!DOCTYPE html>
       display: inline-block;
       margin-top: 16px;
       padding: 10px 20px;
-      background-color: #4f46e5;
-      color: white;
+      background-color: #fff;
+      border: 2px solid #4f46e5;
+      color: #222;
       text-decoration: none;
       border-radius: 5px;
       font-weight: 500;
