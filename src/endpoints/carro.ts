@@ -99,8 +99,10 @@ carroRoutes.post('/:carroId/tramitar', async (c: Context) => {
       .bind(detalle.cantidad, detalle.producto.id).run();
   }
 
-  // Actualizar estado
-  await db.prepare('UPDATE CarroCompras SET estado = "tramitado" WHERE id = ?').bind(carroId).run();
+  // Actualizar estado y fecha/hora de tramitación
+  const now = new Date();
+  const fecha = now.toISOString();
+  await db.prepare('UPDATE CarroCompras SET estado = "tramitado", fecha = ? WHERE id = ?').bind(fecha, carroId).run();
 
   // Enviar correo
   try {    // Generar HTML mejorado con la plantilla
@@ -194,7 +196,7 @@ carroRoutes.get('/tramitados/:ciudadanoId', async (c: Context) => {
 });
 
 // PUT /carro/:carroId - Editar atributos del carro (admin)
-carroRoutes.put('/:carroId', requireAdminToken, async (c: Context) => {
+carroRoutes.put('/:carroId', async (c: Context) => {
   const db = c.env.DB;
   const carroId = Number(c.req.param('carroId'));
   const data = await c.req.json();
