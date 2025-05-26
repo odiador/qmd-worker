@@ -168,6 +168,32 @@ openapi.get('/carro/:ciudadanoId', async (c: Context) => {
   }
 });
 
+// POST /ciudadanos - Crear un nuevo ciudadano
+openapi.post('/ciudadanos', async (c: Context) => {
+  try {
+    const db = c.env.DB;
+    const data = await c.req.json();
+    const result = await db.prepare(`
+      INSERT INTO Ciudadano (nombre, apellido, cedula, email, direccion, telefono, fechaNacimiento, genero, estado)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      data.nombre,
+      data.apellido,
+      data.cedula,
+      data.email || null,
+      data.direccion || null,
+      data.telefono || null,
+      data.fechaNacimiento || null,
+      data.genero || null,
+      data.estado || null
+    ).run();
+    const ciudadano = await db.prepare('SELECT * FROM Ciudadano WHERE id = ?').bind(result.lastInsertRowId).first();
+    return c.json(ciudadano);
+  } catch (err) {
+    return c.json({ error: 'Error al crear ciudadano', detalle: String(err) }, 500);
+  }
+});
+
 openapi.route('/carro', carroRoutes);
 openapi.route('/carro', detalleRoutes);
 openapi.route('/notificaciones', notificacionRoutes);
