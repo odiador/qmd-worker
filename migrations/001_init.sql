@@ -76,4 +76,4 @@
 -- );
 
 -- MIGRACIÓN: Insertar usuario Juan Amador
-INSERT INTO Ciudadano (nombre, apellido, cedula, email) VALUES ('Juan', 'Amador', 'arroa03', 'arroa03@gmail.com');
+INSERT INTO Ciudadano (nombre, apellido, cedula, email) VALUES ('Juan', 'Amador', '1092851416', 'arroa03@gmail.com');

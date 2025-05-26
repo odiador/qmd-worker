@@ -1,8 +1,10 @@
-import { Hono } from 'hono';
+import { Context, Hono } from 'hono';
 import { fromHono, getSwaggerUI } from 'chanfana';
 import { carroRoutes } from './endpoints/carro';
 import { detalleRoutes } from './endpoints/detalle';
 import { notificacionRoutes } from './endpoints/notificacion';
+import adminAuth from './endpoints/adminAuth';
+import bcrypt from 'bcryptjs';
 
 const openapi = fromHono(new Hono(), {
   schema: { openapi: '3.1.0', info: { title: 'QMD API', version: '1.0.0' } }
@@ -51,7 +53,7 @@ openapi.get('/ciudadanos', async (c) => {
 });
 
 // GET /ciudadanos/:id - Obtener un ciudadano por ID
-openapi.get('/ciudadanos/:id', async (c) => {
+openapi.get('/ciudadanos/:id', async (c: Context) => {
   try {
     const db = c.env.DB;
     const id = c.req.param('id');
@@ -69,6 +71,21 @@ openapi.get('/ciudadanos/:id', async (c) => {
 openapi.route('/carro', carroRoutes);
 openapi.route('/carro', detalleRoutes);
 openapi.route('/notificaciones', notificacionRoutes);
+
+// --- ENDPOINT DE LOGIN ADMIN ---
+openapi.post('/admin/login', async (c) => {
+  const { email, password } = await c.req.json();
+  const db = c.env.DB;
+  const user = await db.prepare('SELECT * FROM AdminUser WHERE email = ?').bind(email).first();
+  if (!user) {
+    return c.json({ error: 'Usuario o contraseña incorrectos' }, 401);
+  }
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) {
+    return c.json({ error: 'Usuario o contraseña incorrectos' }, 401);
+  }
+  return c.json({ success: true, adminId: user.id, email: user.email });
+});
 
 const app = new Hono();
 app.route('/api', openapi);
