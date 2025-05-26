@@ -9,9 +9,35 @@ detalleRoutes.post('/:carroId/producto', async (c) => {
   const db = c.env.DB;
   const carroId = Number(c.req.param('carroId'));
   const { productoId, catalogoId, cantidad } = await c.req.json();
-  await db.prepare('INSERT INTO DetalleProducto (carroId, productoId, catalogoId, cantidad) VALUES (?, ?, ?, ?)')
-    .bind(carroId, productoId || null, catalogoId || null, cantidad).run();
-  return c.json({ ok: true });
+  // Buscar si ya existe un detalle para este producto en el carro
+  const existente = await db.prepare('SELECT id, cantidad FROM DetalleProducto WHERE carroId = ? AND productoId = ?').bind(carroId, productoId).first();
+  // Obtener stock actual del producto
+  const producto = await db.prepare('SELECT stock, nombre FROM Producto WHERE id = ?').bind(productoId).first();
+  if (!producto || producto.stock === undefined) {
+    return c.json({ ok: false, error: 'Producto no encontrado' }, 400);
+  }
+  const cantidadSolicitada = (existente ? (existente.cantidad || 0) : 0) + (cantidad ? Number(cantidad) : 1);
+  if (cantidadSolicitada > producto.stock) {
+    return c.json({
+      ok: false,
+      error: 'Stock insuficiente',
+      producto: producto.nombre,
+      stockDisponible: producto.stock,
+      solicitado: cantidadSolicitada,
+      detalleId: existente ? existente.id : undefined,
+      productoId: productoId
+    }, 400);
+  }
+  if (existente) {
+    // Si existe, sumar la cantidad (o 1 si no viene cantidad)
+    await db.prepare('UPDATE DetalleProducto SET cantidad = ? WHERE id = ?').bind(cantidadSolicitada, existente.id).run();
+    return c.json({ ok: true, actualizado: true, detalleId: existente.id, nuevaCantidad: cantidadSolicitada });
+  } else {
+    // Si no existe, crear el detalle
+    await db.prepare('INSERT INTO DetalleProducto (carroId, productoId, catalogoId, cantidad) VALUES (?, ?, ?, ?)')
+      .bind(carroId, productoId || null, catalogoId || null, cantidad ? Number(cantidad) : 1).run();
+    return c.json({ ok: true, creado: true });
+  }
 });
 
 // PUT /carro/:carroId/detalle/:detalleId - Actualizar cantidad

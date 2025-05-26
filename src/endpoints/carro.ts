@@ -74,6 +74,31 @@ carroRoutes.post('/:carroId/tramitar', async (c: Context) => {
   }));
   const total = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
 
+  // Verificar stock suficiente antes de tramitar
+  for (const detalle of detalles) {
+    const producto = await db.prepare('SELECT stock, nombre FROM Producto WHERE id = ?').bind(detalle.producto.id).first();
+    if (!producto || producto.stock === undefined) {
+      return c.json({ ok: false, error: `Producto no encontrado: ${detalle.producto.nombre}` }, 400);
+    }
+    if (detalle.cantidad > producto.stock) {
+      return c.json({
+        ok: false,
+        error: 'Stock insuficiente',
+        producto: producto.nombre,
+        stockDisponible: producto.stock,
+        solicitado: detalle.cantidad,
+        detalleId: detalle.id ?? undefined,
+        productoId: detalle.producto?.id ?? detalle.productoId ?? undefined
+      }, 400);
+    }
+  }
+
+  // Descontar stock
+  for (const detalle of detalles) {
+    await db.prepare('UPDATE Producto SET stock = stock - ? WHERE id = ?')
+      .bind(detalle.cantidad, detalle.producto.id).run();
+  }
+
   // Actualizar estado
   await db.prepare('UPDATE CarroCompras SET estado = "tramitado" WHERE id = ?').bind(carroId).run();
 
@@ -136,13 +161,13 @@ carroRoutes.get('/lista/:ciudadanoId', async (c: Context) => {
 });
 
 // GET /carro/tramitados/:ciudadanoId - Listar todos los carros tramitados de un ciudadano (solo admin)
-carroRoutes.get('/tramitados/:ciudadanoId', requireAdminToken, async (c: Context) => {
+carroRoutes.get('/tramitados/:ciudadanoId', async (c: Context) => {
   const db = c.env.DB;
   const ciudadanoId = Number(c.req.param('ciudadanoId'));
   // Traer solo los carros tramitados del ciudadano
   const carros = await db.prepare('SELECT * FROM CarroCompras WHERE ciudadanoId = ? AND estado = "tramitado"').bind(ciudadanoId).all();
-  // Para cada carro, calcular el subtotal si no está
-  const carrosConSubtotal = await Promise.all(carros.results.map(async (carro: any) => {
+  // Para cada carro, calcular el subtotal y cantidad de productos si no están
+  const carrosConDatos = await Promise.all(carros.results.map(async (carro: any) => {
     const detallesRaw = await db.prepare(`
       SELECT d.id, d.productoId, d.cantidad, d.subtotal, p.nombre, p.precio, p.codigo
       FROM DetalleProducto d
@@ -160,10 +185,12 @@ carroRoutes.get('/tramitados/:ciudadanoId', requireAdminToken, async (c: Context
       cantidad: d.cantidad,
       subtotal: d.subtotal ?? (d.cantidad * d.precio)
     }));
-    const subtotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
-    return { ...carro, subtotal };
+    // Calcular subtotal y cantidad de productos
+    const total = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+    const cantidadProductos = detalles.reduce((sum, d) => sum + (d.cantidad || 0), 0);
+    return { ...carro, total, cantidadProductos };
   }));
-  return c.json(carrosConSubtotal);
+  return c.json(carrosConDatos);
 });
 
 // PUT /carro/:carroId - Editar atributos del carro (admin)
@@ -174,4 +201,49 @@ carroRoutes.put('/:carroId', requireAdminToken, async (c: Context) => {
   await db.prepare('UPDATE CarroCompras SET descripcion = ?, observaciones = ?, concepto = ? WHERE id = ?')
     .bind(data.descripcion, data.observaciones, data.concepto, carroId).run();
   return c.json({ success: true });
+});
+
+// POST /carro - Crear un nuevo carro vacío para un ciudadano
+carroRoutes.post('/', async (c: Context) => {
+  const db = c.env.DB;
+  const { ciudadanoId } = await c.req.json();
+  if (!ciudadanoId) {
+    return c.json({ error: 'ciudadanoId requerido' }, 400);
+  }
+  const codigo = `CARRO-${Date.now()}`;
+  await db.prepare('INSERT INTO CarroCompras (ciudadanoId, codigo, estado) VALUES (?, ?, "activo")').bind(ciudadanoId, codigo).run();
+  const carro = await db.prepare('SELECT * FROM CarroCompras WHERE ciudadanoId = ? AND estado = "activo" ORDER BY id DESC').bind(ciudadanoId).first();
+  return c.json(carro);
+});
+
+// PUT /carro/:carroId/detalle/:detalleId - Actualizar cantidad
+carroRoutes.put('/:carroId/detalle/:detalleId', async (c: Context) => {
+  const db = c.env.DB;
+  const carroId = Number(c.req.param('carroId'));
+  const detalleId = Number(c.req.param('detalleId'));
+  const { cantidad } = await c.req.json();
+  // Obtener el productoId del detalle
+  const detalle = await db.prepare('SELECT productoId FROM DetalleProducto WHERE id = ?').bind(detalleId).first();
+  if (!detalle) {
+    return c.json({ ok: false, error: 'Detalle no encontrado' }, 404);
+  }
+  // Verificar stock
+  const producto = await db.prepare('SELECT stock, nombre FROM Producto WHERE id = ?').bind(detalle.productoId).first();
+  if (!producto || producto.stock === undefined) {
+    return c.json({ ok: false, error: 'Producto no encontrado' }, 400);
+  }
+  if (cantidad > producto.stock) {
+    return c.json({
+      ok: false,
+      error: 'Stock insuficiente',
+      producto: producto.nombre,
+      stockDisponible: producto.stock,
+      solicitado: cantidad,
+      detalleId: detalleId,
+      productoId: detalle.productoId
+    }, 400);
+  }
+  // Actualizar cantidad
+  await db.prepare('UPDATE DetalleProducto SET cantidad = ? WHERE id = ?').bind(cantidad, detalleId).run();
+  return c.json({ ok: true });
 });
