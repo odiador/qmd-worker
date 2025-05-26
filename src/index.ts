@@ -101,7 +101,7 @@ function generateToken() {
 }
 
 // Middleware seguro para admin
-function requireAdminToken(c, next) {
+export function requireAdminToken(c, next) {
   const token = c.req.header('x-admin-token');
   // LOG para depuración
   console.log('Token recibido:', token);
@@ -118,8 +118,19 @@ openapi.put('/editciudadano/:id', requireAdminToken, async (c: Context) => {
     const db = c.env.DB;
     const id = c.req.param('id');
     const data = await c.req.json();
-    await db.prepare('UPDATE Ciudadano SET nombre = ?, apellido = ?, cedula = ? WHERE id = ?')
-      .bind(data.nombre, data.apellido, data.cedula, id).run();
+    await db.prepare('UPDATE Ciudadano SET nombre = ?, apellido = ?, cedula = ?, direccion = ?, telefono = ?, email = ?, fechaNacimiento = ?, genero = ?, estado = ? WHERE id = ?')
+      .bind(
+        data.nombre,
+        data.apellido,
+        data.cedula,
+        data.direccion,
+        data.telefono,
+        data.email,
+        data.fechaNacimiento,
+        data.genero,
+        data.estado,
+        id
+      ).run();
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: 'Error al actualizar ciudadano', detalle: String(err) }, 500);
@@ -146,7 +157,7 @@ openapi.delete('/ciudadanos/:id', requireAdminToken, async (c: Context) => {
   }
 });
 
-openapi.get('/carro/:ciudadanoId', requireAdminToken, async (c: Context) => {
+openapi.get('/carro/:ciudadanoId', async (c: Context) => {
   try {
     const db = c.env.DB;
     const ciudadanoId = c.req.param('ciudadanoId');

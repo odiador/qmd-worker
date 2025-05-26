@@ -3,6 +3,7 @@ import type { Context } from 'hono';
 import { sendEmail } from '../resend';
 import { fromHono } from 'chanfana';
 import { generarEmailHTML } from '../utils/email-template';
+import { requireAdminToken } from '..';
 
 export const carroRoutes = fromHono(new Hono());
 
@@ -79,7 +80,7 @@ carroRoutes.post('/:carroId/tramitar', async (c: Context) => {
   // Enviar correo
   try {    // Generar HTML mejorado con la plantilla
     const html = generarEmailHTML(carro, detalles, total);
-      // Buscar el correo del ciudadano a partir del ciudadanoId del carro
+    // Buscar el correo del ciudadano a partir del ciudadanoId del carro
     let destinatario = 'arroa03@gmail.com'; // Default
     if (carro.ciudadanoId) {
       const ciudadano = await db.prepare('SELECT email FROM Ciudadano WHERE id = ?').bind(carro.ciudadanoId).first();
@@ -87,7 +88,7 @@ carroRoutes.post('/:carroId/tramitar', async (c: Context) => {
         destinatario = ciudadano.email;
       }
     }
-    
+
     await sendEmail({
       to: destinatario,
       subject: 'Resumen de tu compra - QMD',
@@ -99,4 +100,78 @@ carroRoutes.post('/:carroId/tramitar', async (c: Context) => {
   }
 
   return c.json({ ok: true });
+});
+
+// GET /carro/lista/:ciudadanoId - Listar todos los carros de un ciudadano (con subtotal calculado)
+carroRoutes.get('/lista/:ciudadanoId', async (c: Context) => {
+  const db = c.env.DB;
+  const ciudadanoId = Number(c.req.param('ciudadanoId'));
+  // Traer solo los carros activos del ciudadano
+  const carros = await db.prepare('SELECT * FROM CarroCompras WHERE ciudadanoId = ? AND estado = "activo"').bind(ciudadanoId).all();
+  // Para cada carro, calcular el subtotal si no está
+  const carrosConSubtotal = await Promise.all(carros.results.map(async (carro: any) => {
+    // Traer detalles
+    const detallesRaw = await db.prepare(`
+      SELECT d.id, d.productoId, d.cantidad, d.subtotal, p.nombre, p.precio, p.codigo
+      FROM DetalleProducto d
+      LEFT JOIN Producto p ON d.productoId = p.id
+      WHERE d.carroId = ?
+    `).bind(carro.id).all();
+    const detalles = detallesRaw.results.map((d: any) => ({
+      id: d.id,
+      producto: {
+        id: d.productoId,
+        nombre: d.nombre,
+        precio: d.precio,
+        codigo: d.codigo
+      },
+      cantidad: d.cantidad,
+      subtotal: d.subtotal ?? (d.cantidad * d.precio)
+    }));
+    // Calcular subtotal
+    const subtotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+    return { ...carro, subtotal };
+  }));
+  return c.json(carrosConSubtotal);
+});
+
+// GET /carro/tramitados/:ciudadanoId - Listar todos los carros tramitados de un ciudadano (solo admin)
+carroRoutes.get('/tramitados/:ciudadanoId', requireAdminToken, async (c: Context) => {
+  const db = c.env.DB;
+  const ciudadanoId = Number(c.req.param('ciudadanoId'));
+  // Traer solo los carros tramitados del ciudadano
+  const carros = await db.prepare('SELECT * FROM CarroCompras WHERE ciudadanoId = ? AND estado = "tramitado"').bind(ciudadanoId).all();
+  // Para cada carro, calcular el subtotal si no está
+  const carrosConSubtotal = await Promise.all(carros.results.map(async (carro: any) => {
+    const detallesRaw = await db.prepare(`
+      SELECT d.id, d.productoId, d.cantidad, d.subtotal, p.nombre, p.precio, p.codigo
+      FROM DetalleProducto d
+      LEFT JOIN Producto p ON d.productoId = p.id
+      WHERE d.carroId = ?
+    `).bind(carro.id).all();
+    const detalles = detallesRaw.results.map((d: any) => ({
+      id: d.id,
+      producto: {
+        id: d.productoId,
+        nombre: d.nombre,
+        precio: d.precio,
+        codigo: d.codigo
+      },
+      cantidad: d.cantidad,
+      subtotal: d.subtotal ?? (d.cantidad * d.precio)
+    }));
+    const subtotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+    return { ...carro, subtotal };
+  }));
+  return c.json(carrosConSubtotal);
+});
+
+// PUT /carro/:carroId - Editar atributos del carro (admin)
+carroRoutes.put('/:carroId', requireAdminToken, async (c: Context) => {
+  const db = c.env.DB;
+  const carroId = Number(c.req.param('carroId'));
+  const data = await c.req.json();
+  await db.prepare('UPDATE CarroCompras SET descripcion = ?, observaciones = ?, concepto = ? WHERE id = ?')
+    .bind(data.descripcion, data.observaciones, data.concepto, carroId).run();
+  return c.json({ success: true });
 });
