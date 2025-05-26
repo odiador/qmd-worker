@@ -185,7 +185,7 @@ openapi.post('/ciudadanos', async (c: Context) => {
       data.telefono || null,
       data.fechaNacimiento || null,
       data.genero || null,
-      data.estado || null
+      'Activo' // Estado por defecto
     ).run();
     const ciudadano = await db.prepare('SELECT * FROM Ciudadano WHERE id = ?').bind(result.lastInsertRowId).first();
     return c.json(ciudadano);
