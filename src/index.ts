@@ -1,10 +1,11 @@
-import { Context, Hono } from 'hono';
+import bcrypt from 'bcryptjs';
 import { fromHono, getSwaggerUI } from 'chanfana';
+import { Context, Hono } from 'hono';
 import { carroRoutes } from './endpoints/carro';
 import { detalleRoutes } from './endpoints/detalle';
 import { notificacionRoutes } from './endpoints/notificacion';
-import adminAuth from './endpoints/adminAuth';
-import bcrypt from 'bcryptjs';
+
+declare var crypto: Crypto;
 
 const openapi = fromHono(new Hono(), {
   schema: { openapi: '3.1.0', info: { title: 'QMD API', version: '1.0.0' } }
@@ -16,15 +17,15 @@ openapi.use('*', async (c, next) => {
   c.res.headers.set('Access-Control-Allow-Origin', '*');
   // c.res.headers.set('Access-Control-Allow-Origin', 'https://qmd.odiador.dev');
   c.res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-admin-token');
 });
 
 // --- Opcional: responder preflight ---
 openapi.options('*', (c) => {
   c.res.headers.set('Access-Control-Allow-Origin', '*');
   c.res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  return c.text('', 204 as 200);
+  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-admin-token');
+  return c.body(null, 204);
 });
 
 // --- RUTAS PRINCIPALES ---
@@ -68,11 +69,7 @@ openapi.get('/ciudadanos/:id', async (c: Context) => {
   }
 });
 
-openapi.route('/carro', carroRoutes);
-openapi.route('/carro', detalleRoutes);
-openapi.route('/notificaciones', notificacionRoutes);
-
-// --- ENDPOINT DE LOGIN ADMIN ---
+// --- LOGIN ADMIN CON TOKEN ---
 openapi.post('/admin/login', async (c) => {
   const { email, password } = await c.req.json();
   const db = c.env.DB;
@@ -84,13 +81,88 @@ openapi.post('/admin/login', async (c) => {
   if (!valid) {
     return c.json({ error: 'Usuario o contraseña incorrectos' }, 401);
   }
-  return c.json({ success: true, adminId: user.id, email: user.email });
+  // Generar token seguro compatible con Workers
+  const token = generateToken();
+  globalThis.adminTokens = globalThis.adminTokens || new Set();
+  globalThis.adminTokens.add(token);
+  return c.json({ success: true, adminId: user.id, email: user.email, token });
 });
+
+// Función para generar token seguro usando Web Crypto API compatible con Cloudflare Workers
+function generateToken() {
+  const array = new Uint8Array(32);
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.getRandomValues === 'function'
+  ) {
+    crypto.getRandomValues(array);
+  }
+  return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Middleware seguro para admin
+function requireAdminToken(c, next) {
+  const token = c.req.header('x-admin-token');
+  // LOG para depuración
+  console.log('Token recibido:', token);
+  console.log('Tokens válidos en memoria:', globalThis.adminTokens ? Array.from(globalThis.adminTokens) : []);
+  if (!token || !globalThis.adminTokens || !globalThis.adminTokens.has(token)) {
+    return c.json({ error: 'No autorizado' }, 401);
+  }
+  return next();
+}
+
+// --- ENDPOINTS PROTEGIDOS ---
+openapi.put('/editciudadano/:id', requireAdminToken, async (c: Context) => {
+  try {
+    const db = c.env.DB;
+    const id = c.req.param('id');
+    const data = await c.req.json();
+    await db.prepare('UPDATE Ciudadano SET nombre = ?, apellido = ?, cedula = ? WHERE id = ?')
+      .bind(data.nombre, data.apellido, data.cedula, id).run();
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: 'Error al actualizar ciudadano', detalle: String(err) }, 500);
+  }
+});
+
+openapi.delete('/ciudadanos/:id', requireAdminToken, async (c: Context) => {
+  try {
+    const db = c.env.DB;
+    const id = c.req.param('id');
+    // Eliminar detalles relacionados a los carros del ciudadano
+    const carros = await db.prepare('SELECT id FROM CarroCompras WHERE ciudadanoId = ?').bind(id).all();
+    for (const carro of carros.results) {
+      await db.prepare('DELETE FROM DetalleProducto WHERE carroId = ?').bind(carro.id).run();
+    }
+    // Eliminar carros del ciudadano
+    await db.prepare('DELETE FROM CarroCompras WHERE ciudadanoId = ?').bind(id).run();
+    // Eliminar el ciudadano
+    await db.prepare('DELETE FROM Ciudadano WHERE id = ?').bind(id).run();
+    return c.json({ success: true });
+  } catch (err) {
+    console.error('Error en DELETE /ciudadanos/:id:', err);
+    return c.json({ error: 'Error al eliminar ciudadano', detalle: String(err) }, 500);
+  }
+});
+
+openapi.get('/carro/:ciudadanoId', requireAdminToken, async (c: Context) => {
+  try {
+    const db = c.env.DB;
+    const ciudadanoId = c.req.param('ciudadanoId');
+    const { results } = await db.prepare('SELECT * FROM CarroCompras WHERE ciudadanoId = ?').bind(ciudadanoId).all();
+    return c.json(results);
+  } catch (err) {
+    return c.json({ error: 'Error al obtener carros', detalle: String(err) }, 500);
+  }
+});
+
+openapi.route('/carro', carroRoutes);
+openapi.route('/carro', detalleRoutes);
+openapi.route('/notificaciones', notificacionRoutes);
 
 const app = new Hono();
 app.route('/api', openapi);
-
-// Swagger UI (served at /)
 app.get('/', (c) => c.html(getSwaggerUI('/api/openapi.json')));
 
 export default app;
